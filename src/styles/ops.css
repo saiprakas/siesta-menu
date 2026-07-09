@@ -305,7 +305,9 @@
 
   /* Item rows: stack into a clean 2-line card */
   .op-item { flex-direction: column; align-items: stretch; gap: 10px; padding: 14px; }
-  .op-item-top { flex: none; min-width: 0; width: 100%; }
+  .op-item-top { flex: none; min-width: 0; width: 100%; align-items: flex-start; }
+  .op-item-top .veg-badge { margin-top: 4px; }
+  .op-item .pr { padding-top: 2px; }
   .op-item-actions { width: 100%; justify-content: space-between; }
   .op-item-btns { flex: none; }
   .op-item-btns .danger { margin-left: 6px; }
