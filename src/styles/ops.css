@@ -262,30 +262,30 @@
    ============================================================ */
 @media (max-width: 640px) {
   /* Top bar: logo/status wrap onto their own line when tight */
-  .ops-top { padding: 12px 14px; gap: 10px; row-gap: 8px; }
-  .ops-top .script { font-size: 1.45rem; }
-  .ops-top small { font-size: 0.52rem; }
+  .ops-top { padding: 8px 14px; gap: 8px; row-gap: 6px; }
+  .ops-top .script { font-size: 1.25rem; }
+  .ops-top small { font-size: 0.5rem; }
   .ops-top .grow { flex: 1 1 100%; height: 0; }
-  .ops-mode { font-size: 0.64rem; padding: 4px 10px; }
-  .ops-logout { padding: 6px 12px; }
+  .ops-mode { font-size: 0.6rem; padding: 3px 9px; }
+  .ops-logout { padding: 5px 11px; }
 
-  .ops-tabs { padding: 8px 10px 0; gap: 4px; top: 54px; }
-  .ops-tab { padding: 10px 14px; font-size: 0.8rem; flex: 1 1 auto; justify-content: center; }
+  .ops-tabs { padding: 6px 10px 0; gap: 4px; top: 46px; }
+  .ops-tab { padding: 8px 14px; font-size: 0.78rem; flex: 1 1 auto; justify-content: center; }
 
-  .ops-main { padding: 12px 10px 100px; }
-  .ops-card { padding: 14px; border-radius: 14px; margin-bottom: 12px; }
-  .ops-card h2 { font-size: 1.05rem; margin-bottom: 4px; }
-  .ops-card .sub { font-size: 0.78rem; margin-bottom: 12px; }
-  .ops-note { padding: 10px 12px; font-size: 0.78rem; margin-bottom: 12px; }
+  .ops-main { padding: 10px 10px 100px; }
+  .ops-card { padding: 12px; border-radius: 14px; margin-bottom: 10px; }
+  .ops-card h2 { font-size: 1rem; margin-bottom: 3px; }
+  .ops-card .sub { font-size: 0.75rem; margin-bottom: 8px; }
+  .ops-note { padding: 8px 10px; font-size: 0.75rem; margin-bottom: 10px; }
 
   /* Dashboard: compact 2-up stat tiles instead of 4 tall stacked rows */
-  .dash-grid { grid-template-columns: repeat(2, 1fr); gap: 10px; margin-bottom: 12px; }
-  .dash-stat { padding: 14px; border-radius: 14px; }
-  .dash-stat b { font-size: 1.5rem; }
-  .dash-stat span { font-size: 0.62rem; }
+  .dash-grid { grid-template-columns: repeat(2, 1fr); gap: 8px; margin-bottom: 10px; }
+  .dash-stat { padding: 10px 12px; border-radius: 14px; }
+  .dash-stat b { font-size: 1.3rem; }
+  .dash-stat span { font-size: 0.58rem; }
 
   /* Bigger, thumb-friendly tap targets */
-  .ops-btn { min-height: 42px; }
+  .ops-btn { min-height: 40px; padding: 9px 16px; }
   .ops-btn.sm { min-height: 40px; padding: 8px 12px; }
 
   /* Category grid: fixed 2-up boxes fit any phone width */
