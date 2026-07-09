@@ -174,7 +174,10 @@ const POOLS = {
 export function itemImage(catId, item, index) {
   if (item.img) return item.img;
   const dedicated = ITEM_IMG[item.id];
-  if (dedicated) return dedicated.startsWith("http") ? dedicated : U(dedicated);
+  // A bare Unsplash photo id (e.g. "1573080496219-bb080dd4f877") has no
+  // slash and needs the U() builder; anything with a slash is already a
+  // full URL or a local path (./dish-photos/...) and should be used as-is.
+  if (dedicated) return dedicated.includes("/") ? dedicated : U(dedicated);
   const pool = POOLS[catId];
   if (!pool) return null;
   return U(pool[index % pool.length]);
