@@ -174,8 +174,7 @@ export default function Ops() {
       <div className="ops-tabs">
         {[
           ["dashboard", "chart", "Dashboard"],
-          ["menu", "utensils", "Menu"],
-          ["settings", "sliders", "Menu Settings"]
+          ["menu", "utensils", "Menu"]
         ].map(([id, icon, label]) => (
           <button key={id} className={`ops-tab ${tab === id ? "active" : ""}`} onClick={() => setTab(id)}>
             <Icon name={icon} size={15} /> {label}
@@ -197,8 +196,6 @@ export default function Ops() {
         {tab === "menu" && (
           <MenuManager draft={draft} update={update} openModal={setModal} />
         )}
-
-        {tab === "settings" && <Settings draft={draft} update={update} />}
       </div>
 
       {/* ---------- Save bar ---------- */}
@@ -311,7 +308,6 @@ function Dashboard({ draft, totalItems, oosItems, goto }) {
         <p className="sub">This panel manages the QR menu only. Changes go live on customers' phones after you hit Save & Publish.</p>
         <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
           <button className="ops-btn gold" onClick={() => goto("menu")}><Icon name="utensils" size={14} /> Edit Menu</button>
-          <button className="ops-btn ghost" onClick={() => goto("settings")}><Icon name="sliders" size={14} /> Menu Settings</button>
           <Link className="ops-btn ghost" to="/menu" target="_blank"><Icon name="eye" size={14} /> Preview Menu</Link>
         </div>
       </div>
@@ -719,58 +715,3 @@ function CategoryModal({ modal, onClose, onSave }) {
   );
 }
 
-/* ============================================================
-   SETTINGS
-   ============================================================ */
-function Settings({ draft, update }) {
-  const s = draft.settings;
-  const set = (key, val) => update((d) => { d.settings[key] = val; });
-
-  return (
-    <>
-      <div className="ops-card">
-        <h2>Menu Settings</h2>
-        <p className="sub">
-          These settings affect the QR MENU only. The website is a separate static page and is not
-          connected to this panel.
-        </p>
-      </div>
-
-      <div className="ops-card">
-        <h2>Announcement Banner</h2>
-        <p className="sub">Shows as a golden ribbon at the top of the QR menu — great for today's specials or offers. Leave empty to hide it.</p>
-        <div className="ops-field">
-          <input
-            value={s.announcement}
-            onChange={(e) => set("announcement", e.target.value)}
-            placeholder="e.g. Today's Special — Mango Tres Leches! 🥭"
-          />
-        </div>
-      </div>
-
-      <div className="ops-card">
-        <h2>Security</h2>
-        <div className="ops-field">
-          <label>Ops Panel Password (needed to log in to this panel)</label>
-          <input type="password" autoComplete="new-password" value={s.opsPassword} onChange={(e) => set("opsPassword", e.target.value)} />
-        </div>
-      </div>
-
-      <div className="ops-card">
-        <h2>Danger Zone</h2>
-        <p className="sub">Restore the original menu that shipped with the site. Use only if something goes badly wrong.</p>
-        <button
-          className="ops-btn danger"
-          onClick={async () => {
-            if (confirm("Reset the ENTIRE menu and settings to factory defaults? This cannot be undone.")) {
-              await Store.resetToDefaults();
-              location.reload();
-            }
-          }}
-        >
-          Reset All Data
-        </button>
-      </div>
-    </>
-  );
-}
