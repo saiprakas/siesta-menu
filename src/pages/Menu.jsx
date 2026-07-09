@@ -196,17 +196,6 @@ export default function Menu() {
                 <h2>{selected.name}</h2>
                 <p>{selected.desc}</p>
               </div>
-              {selected.addons?.length > 0 && (
-                <div className="m-addons">
-                  <b>Add-ons:</b>{" "}
-                  {selected.addons.map((a, i) => (
-                    <span key={i}>
-                      {a.name} {a.price > 0 ? `+₹${a.price}` : "(free)"}
-                      {i < selected.addons.length - 1 ? " • " : ""}
-                    </span>
-                  ))}
-                </div>
-              )}
               <div className="m-items">
                 {selected.items.map((item, ii) => (
                   <ItemRow key={item.id} cat={selected} item={item} index={ii} />
@@ -219,6 +208,7 @@ export default function Menu() {
             <span className="script">Siesta</span>
             <em className="m-quote">“Life is short. Eat dessert first.”</em>
             {s.tagline}
+            <small className="m-foot-note">Images shown are for illustration only and may vary from the actual item.</small>
           </footer>
         </main>
       </div>

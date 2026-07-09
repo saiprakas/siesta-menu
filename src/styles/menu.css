@@ -155,6 +155,7 @@
 .m-foot { text-align: center; padding: 24px 8px 6px; color: #9b8a6f; font-size: 0.68rem; }
 .m-foot .script { font-family: var(--font-script); font-size: 1.5rem; color: var(--coffee); display: block; }
 .m-foot .m-quote { display: block; font-family: var(--font-display); font-style: italic; color: var(--gold-deep); font-size: 0.78rem; margin: 3px 0 5px; }
+.m-foot-note { display: block; margin-top: 10px; font-size: 0.62rem; color: #b3a077; }
 
 /* Wider screens: cap the width so it still feels like the phone menu */
 @media (min-width: 700px) {
