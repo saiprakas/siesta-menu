@@ -19,16 +19,11 @@
    Full step-by-step (with security rules) is in README.md.
    ============================================================ */
 
-export const FIREBASE_CONFIG = null;
-
-/* Example — replace with YOUR values from the Firebase console:
-
 export const FIREBASE_CONFIG = {
-  apiKey: "AIzaSy....................",
-  authDomain: "siesta-dessert-cafe.firebaseapp.com",
-  projectId: "siesta-dessert-cafe",
-  storageBucket: "siesta-dessert-cafe.appspot.com",
-  messagingSenderId: "1234567890",
-  appId: "1:1234567890:web:abcdef123456"
+  apiKey: "AIzaSyBTtpm45JQjOhqL1N4NPgro6JmHWHhlgfE",
+  authDomain: "siesta-cafe.firebaseapp.com",
+  projectId: "siesta-cafe",
+  storageBucket: "siesta-cafe.firebasestorage.app",
+  messagingSenderId: "481147875191",
+  appId: "1:481147875191:web:51b8e6d18352cb019e3b72"
 };
-*/

@@ -11,6 +11,73 @@ const clone = (o) => JSON.parse(JSON.stringify(o));
 const slug = (name) =>
   name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "") + "-" + Math.random().toString(36).slice(2, 5);
 
+/* Read a photo picked from the gallery/camera (including big 4K shots),
+   shrink it so the menu stays fast to load, and hand back a compressed
+   Blob ready to upload. Uses createImageBitmap when available — it
+   handles large files without holding a giant base64 string in memory,
+   and honors EXIF rotation so phone photos don't come out sideways. */
+async function compressPhoto(file, maxDim = 900, quality = 0.75) {
+  const MAX_BYTES = 30 * 1024 * 1024; // 30MB raw-file safety cap
+  if (file.size > MAX_BYTES) {
+    throw new Error("That photo is too large (over 30MB). Please choose a smaller one.");
+  }
+
+  let source, width, height;
+  if (typeof createImageBitmap === "function") {
+    try {
+      source = await createImageBitmap(file, { imageOrientation: "from-image" });
+      width = source.width;
+      height = source.height;
+    } catch {
+      source = null;
+    }
+  }
+
+  if (!source) {
+    const dataUrl = await new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onerror = () => reject(new Error("read failed"));
+      reader.onload = () => resolve(reader.result);
+      reader.readAsDataURL(file);
+    });
+    source = await new Promise((resolve, reject) => {
+      const img = new Image();
+      img.onerror = () => reject(new Error("decode failed"));
+      img.onload = () => resolve(img);
+      img.src = dataUrl;
+    });
+    width = source.width;
+    height = source.height;
+  }
+
+  let outW = width, outH = height;
+  if (outW > outH && outW > maxDim) {
+    outH = Math.round((outH * maxDim) / outW);
+    outW = maxDim;
+  } else if (outH > maxDim) {
+    outW = Math.round((outW * maxDim) / outH);
+    outH = maxDim;
+  }
+
+  const canvas = document.createElement("canvas");
+  canvas.width = outW;
+  canvas.height = outH;
+  canvas.getContext("2d").drawImage(source, 0, 0, outW, outH);
+  if (typeof source.close === "function") source.close();
+  return new Promise((resolve, reject) => {
+    canvas.toBlob((blob) => (blob ? resolve(blob) : reject(new Error("compress failed"))), "image/jpeg", quality);
+  });
+}
+
+function blobToDataURL(blob) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = () => reject(new Error("read failed"));
+    reader.onload = () => resolve(reader.result);
+    reader.readAsDataURL(blob);
+  });
+}
+
 /* ============================================================ */
 
 export default function Ops() {
@@ -18,6 +85,7 @@ export default function Ops() {
   const [draft, setDraft] = useState(null); // working copy of all data
   const [dirty, setDirty] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState("");
   const [tab, setTab] = useState("dashboard");
   const [modal, setModal] = useState(null); // {type:"item"|"category", catId, item?}
 
@@ -47,9 +115,21 @@ export default function Ops() {
 
   async function saveAll() {
     setSaving(true);
-    await Store.saveData(clone(draft));
-    setDirty(false);
-    setSaving(false);
+    setSaveError("");
+    try {
+      await Store.saveData(clone(draft));
+      setDirty(false);
+    } catch (err) {
+      const msg = String(err?.message || "");
+      const tooLarge = err?.name === "QuotaExceededError" || /longer than|exceeds the maximum|too large/i.test(msg);
+      setSaveError(
+        tooLarge
+          ? "Too much data to save — likely from too many uploaded photos. Remove or replace a large photo and try again."
+          : "Couldn't save — check your connection and try again."
+      );
+    } finally {
+      setSaving(false);
+    }
   }
 
   if (!authed) return <Login onOk={() => { sessionStorage.setItem(AUTH_KEY, "1"); setAuthed(true); }} />;
@@ -71,7 +151,7 @@ export default function Ops() {
     <div className="ops">
       {/* ---------- Top bar ---------- */}
       <div className="ops-top">
-        <div>
+        <div className="ops-brand">
           <div className="script">Siesta</div>
           <small>Ops Panel</small>
         </div>
@@ -104,13 +184,6 @@ export default function Ops() {
       </div>
 
       <div className="ops-main">
-        {Store.mode !== "firebase" && (
-          <div className="ops-note">
-            <b><Icon name="flame" size={13} /> Running in single-device mode</b>
-            Edits save only in this browser. To sync live with customers' phones and the website, connect
-            Firebase — see <em>src/lib/firebaseConfig.js</em> and README.md (10-minute setup, free).
-          </div>
-        )}
 
         {tab === "dashboard" && (
           <Dashboard
@@ -130,7 +203,7 @@ export default function Ops() {
 
       {/* ---------- Save bar ---------- */}
       <div className={`ops-save-bar ${dirty ? "show" : ""}`}>
-        <span>You have unsaved changes</span>
+        {saveError ? <span className="err">{saveError}</span> : <span>You have unsaved changes</span>}
         <button className="ops-btn gold" onClick={saveAll} disabled={saving}>
           <Icon name="disk" size={14} /> {saving ? "Saving…" : "Save & Publish"}
         </button>
@@ -140,6 +213,7 @@ export default function Ops() {
             const d = await Store.getData();
             setDraft(clone(d));
             setDirty(false);
+            setSaveError("");
           }}
         >
           Discard
@@ -213,8 +287,6 @@ function Login({ onOk }) {
         {err && <div className="err">{err}</div>}
         <button className="btn btn-gold" type="submit">Login →</button>
         <div className="hint">
-          Default password: <b>siesta2704</b> — change it in Cafe Settings after first login.
-          <br />
           <Link to="/">← Back to website</Link>
         </div>
       </form>
@@ -257,7 +329,7 @@ function Dashboard({ draft, totalItems, oosItems, goto }) {
    MENU MANAGER
    ============================================================ */
 function MenuManager({ draft, update, openModal }) {
-  const [openCat, setOpenCat] = useState(null);
+  const [selectedCat, setSelectedCat] = useState(null);
 
   const move = (arr, i, dir) => {
     const j = i + dir;
@@ -265,28 +337,18 @@ function MenuManager({ draft, update, openModal }) {
     [arr[i], arr[j]] = [arr[j], arr[i]];
   };
 
-  return (
-    <>
-      <div className="ops-card">
-        <h2>Menu Management</h2>
-        <p className="sub">Everything about the QR menu is controlled here. How it works:</p>
-        <ul className="ops-help">
-          <li><b>➕ Add Category</b> — creates a new section on the menu (e.g. "Mocktails").</li>
-          <li><b>Items ▾</b> — opens a category so you can see and manage its dishes.</li>
-          <li><b>➕ Item</b> — adds a new dish with name, price, description, photo and tags.</li>
-          <li><b>Green switch</b> — ON = customers can order it. OFF = shows as "OUT OF STOCK" on the menu.</li>
-          <li><b>✏️ Edit</b> — change price, name, description, photo, Bestseller/Spicy tags.</li>
-          <li><b>🗑 Delete</b> — removes the dish permanently (it will ask you first).</li>
-          <li><b>↑ ↓ arrows</b> — move a category or dish up/down in the menu order.</li>
-          <li>When finished, press <b>💾 Save & Publish</b> at the bottom — only then do customers see the changes.</li>
-        </ul>
-        <button className="ops-btn gold" onClick={() => openModal({ type: "category", isNew: true })}>
-          <Icon name="plus" size={14} /> Add Category
-        </button>
-      </div>
+  const ci = draft.categories.findIndex((c) => c.id === selectedCat);
+  const cat = ci >= 0 ? draft.categories[ci] : null;
 
-      {draft.categories.map((cat, ci) => (
-        <div className="cat-block" key={cat.id}>
+  /* ---------- Detail view: one category's dishes ---------- */
+  if (cat) {
+    return (
+      <>
+        <button className="ops-btn ghost back-btn" onClick={() => setSelectedCat(null)}>
+          <Icon name="arrowLeft" size={14} /> All Categories
+        </button>
+
+        <div className="cat-block">
           <div className="cat-block-head">
             <span className="em"><CatIcon cat={cat} size={24} /></span>
             <div>
@@ -299,28 +361,27 @@ function MenuManager({ draft, update, openModal }) {
             <div className="cat-tools">
               <button className="ops-btn sm ghost" title="Move up" onClick={() => update((d) => move(d.categories, ci, -1))}><Icon name="chevronUp" size={13} /></button>
               <button className="ops-btn sm ghost" title="Move down" onClick={() => update((d) => move(d.categories, ci, 1))}><Icon name="chevronDown" size={13} /></button>
-              <button className="ops-btn sm ghost" onClick={() => openModal({ type: "category", isNew: false, cat: clone(cat) })}><Icon name="pencil" size={12} /> Edit</button>
-              <button className="ops-btn sm gold" onClick={() => openModal({ type: "item", catId: cat.id, isNew: true })}><Icon name="plus" size={12} /> Item</button>
+              <button className="ops-btn sm ghost" title="Edit category" onClick={() => openModal({ type: "category", isNew: false, cat: clone(cat) })}><Icon name="pencil" size={12} /> <span className="btn-label">Edit</span></button>
+              <button className="ops-btn sm gold" title="Add item to this category" onClick={() => openModal({ type: "item", catId: cat.id, isNew: true })}><Icon name="plus" size={12} /> <span className="btn-label">Item</span></button>
               <button
                 className="ops-btn sm danger"
                 onClick={() => {
-                  if (confirm(`Delete category "${cat.name}" and all ${cat.items.length} items in it?`))
+                  if (confirm(`Delete category "${cat.name}" and all ${cat.items.length} items in it?`)) {
                     update((d) => { d.categories = d.categories.filter((c) => c.id !== cat.id); });
+                    setSelectedCat(null);
+                  }
                 }}
               >
                 <Icon name="trash" size={13} />
               </button>
-              <button className="ops-btn sm ghost" onClick={() => setOpenCat(openCat === cat.id ? null : cat.id)}>
-                Items <Icon name={openCat === cat.id ? "chevronUp" : "chevronDown"} size={12} />
-              </button>
             </div>
           </div>
 
-          {openCat === cat.id && (
-            <div className="cat-items">
-              {cat.items.length === 0 && <div className="op-item"><i style={{ color: "#9b8a6f" }}>No items yet — add one!</i></div>}
-              {cat.items.map((item, ii) => (
-                <div className={`op-item ${item.inStock ? "" : "oos"}`} key={item.id}>
+          <div className="cat-items">
+            {cat.items.length === 0 && <div className="op-item"><i style={{ color: "#9b8a6f" }}>No items yet — add one!</i></div>}
+            {cat.items.map((item, ii) => (
+              <div className={`op-item ${item.inStock ? "" : "oos"}`} key={item.id}>
+                <div className="op-item-top">
                   <span className="veg-badge" />
                   <div className="nm">
                     <b>
@@ -335,6 +396,8 @@ function MenuManager({ draft, update, openModal }) {
                     <small>{item.desc}</small>
                   </div>
                   <span className="pr">₹{item.price}</span>
+                </div>
+                <div className="op-item-actions">
                   <label className="switch-wrap" title={item.inStock ? "Tap to mark OUT OF STOCK" : "Tap to mark back IN STOCK"}>
                     <span className="switch">
                       <input
@@ -351,28 +414,87 @@ function MenuManager({ draft, update, openModal }) {
                     </span>
                     <small className={item.inStock ? "st-in" : "st-out"}>{item.inStock ? "IN STOCK" : "OUT OF STOCK"}</small>
                   </label>
-                  <button className="ops-btn sm ghost" title="Move dish up" onClick={() => update((d) => move(d.categories.find((c) => c.id === cat.id).items, ii, -1))}><Icon name="chevronUp" size={13} /></button>
-                  <button className="ops-btn sm ghost" title="Move dish down" onClick={() => update((d) => move(d.categories.find((c) => c.id === cat.id).items, ii, 1))}><Icon name="chevronDown" size={13} /></button>
-                  <button className="ops-btn sm ghost" title="Edit this dish" onClick={() => openModal({ type: "item", catId: cat.id, isNew: false, item: clone(item) })}><Icon name="pencil" size={12} /> Edit</button>
-                  <button
-                    className="ops-btn sm danger"
-                    onClick={() => {
-                      if (confirm(`Delete "${item.name}"?`))
-                        update((d) => {
-                          const c = d.categories.find((c) => c.id === cat.id);
-                          c.items = c.items.filter((x) => x.id !== item.id);
-                        });
-                    }}
-                    title="Delete this dish"
-                  >
-                    <Icon name="trash" size={13} /> Delete
-                  </button>
+                  <div className="op-item-btns">
+                    <button className="ops-btn sm ghost" title="Move dish up" onClick={() => update((d) => move(d.categories.find((c) => c.id === cat.id).items, ii, -1))}><Icon name="chevronUp" size={13} /></button>
+                    <button className="ops-btn sm ghost" title="Move dish down" onClick={() => update((d) => move(d.categories.find((c) => c.id === cat.id).items, ii, 1))}><Icon name="chevronDown" size={13} /></button>
+                    <button className="ops-btn sm ghost" title="Edit this dish" onClick={() => openModal({ type: "item", catId: cat.id, isNew: false, item: clone(item) })}><Icon name="pencil" size={12} /> <span className="btn-label">Edit</span></button>
+                    <button
+                      className="ops-btn sm danger"
+                      onClick={() => {
+                        if (confirm(`Delete "${item.name}"?`))
+                          update((d) => {
+                            const c = d.categories.find((c) => c.id === cat.id);
+                            c.items = c.items.filter((x) => x.id !== item.id);
+                          });
+                      }}
+                      title="Delete this dish"
+                    >
+                      <Icon name="trash" size={13} /> <span className="btn-label">Delete</span>
+                    </button>
+                  </div>
                 </div>
-              ))}
-            </div>
-          )}
+              </div>
+            ))}
+          </div>
         </div>
-      ))}
+      </>
+    );
+  }
+
+  /* ---------- Grid view: all categories as boxes ---------- */
+  return (
+    <>
+      <div className="ops-card">
+        <h2>Menu Management</h2>
+        <p className="sub">Tap a category box below to see and manage its dishes.</p>
+        <div className="ops-legend">
+          <div className="legend-tile">
+            <span className="legend-ic gold"><Icon name="plus" size={16} /></span>
+            <b>Add Category</b>
+          </div>
+          <div className="legend-tile">
+            <span className="legend-ic"><Icon name="eye" size={16} /></span>
+            <b>Tap a Box to Open</b>
+          </div>
+          <div className="legend-tile">
+            <span className="legend-ic green"><span className="mini-switch on"><i /></span></span>
+            <b>In / Out of Stock</b>
+          </div>
+          <div className="legend-tile">
+            <span className="legend-ic"><Icon name="pencil" size={15} /></span>
+            <b>Edit</b>
+          </div>
+          <div className="legend-tile">
+            <span className="legend-ic red"><Icon name="trash" size={15} /></span>
+            <b>Delete</b>
+          </div>
+          <div className="legend-tile">
+            <span className="legend-ic"><Icon name="chevronUp" size={15} /></span>
+            <b>Reorder</b>
+          </div>
+          <div className="legend-tile">
+            <span className="legend-ic gold"><Icon name="disk" size={16} /></span>
+            <b>Save &amp; Publish</b>
+          </div>
+        </div>
+        <button className="ops-btn gold lg" onClick={() => openModal({ type: "category", isNew: true })}>
+          <Icon name="plus" size={16} /> Add Category
+        </button>
+      </div>
+
+      <div className="cat-grid">
+        {draft.categories.map((c) => {
+          const oos = c.items.filter((i) => !i.inStock).length;
+          return (
+            <button type="button" className="cat-tile" key={c.id} onClick={() => setSelectedCat(c.id)}>
+              {oos > 0 && <span className="cat-tile-badge" title={`${oos} out of stock`}>{oos}</span>}
+              <span className="cat-tile-ic"><CatIcon cat={c} size={28} /></span>
+              <b>{c.name}</b>
+              <span className="cat-tile-count">{c.items.length} items</span>
+            </button>
+          );
+        })}
+      </div>
     </>
   );
 }
@@ -384,6 +506,37 @@ function ItemModal({ modal, onClose, onSave }) {
   const [it, setIt] = useState(
     modal.item || { id: "", name: "", price: "", desc: "", note: "", img: "", veg: true, inStock: true, tags: [] }
   );
+  const [uploading, setUploading] = useState(false);
+  const [uploadErr, setUploadErr] = useState("");
+
+  async function handlePhotoPick(e) {
+    const file = e.target.files?.[0];
+    e.target.value = ""; // let the same file be re-picked later if needed
+    if (!file) return;
+    if (!file.type.startsWith("image/")) {
+      setUploadErr("Please choose a photo file.");
+      return;
+    }
+    setUploadErr("");
+    setUploading(true);
+    try {
+      const blob = await compressPhoto(file);
+      if (Store.mode === "firebase") {
+        const name = `${modal.catId || "item"}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}.jpg`;
+        const url = await Store.uploadPhoto(blob, `dish-photos/${name}`);
+        setIt((cur) => ({ ...cur, img: url }));
+      } else {
+        // Live sync isn't connected — embed the photo directly (works, but
+        // shares the menu's storage budget, so it's a fine fallback, not the norm).
+        const dataUrl = await blobToDataURL(blob);
+        setIt((cur) => ({ ...cur, img: dataUrl }));
+      }
+    } catch (err) {
+      setUploadErr(err?.message || "Couldn't upload that photo — check your connection and try again.");
+    } finally {
+      setUploading(false);
+    }
+  }
 
   function save() {
     if (!it.name.trim() || !it.price) return alert("Name and price are required.");
@@ -429,12 +582,41 @@ function ItemModal({ modal, onClose, onSave }) {
           </div>
         </div>
         <div className="ops-field">
-          <label>Dish Photo URL (optional — paste a link to your own photo; a matching food photo is shown otherwise)</label>
-          <input
-            value={it.img || ""}
-            onChange={(e) => setIt({ ...it, img: e.target.value.trim() })}
-            placeholder="https://…/my-dish-photo.jpg"
-          />
+          <label>Dish Photo</label>
+          <div className="photo-upload">
+            {it.img ? (
+              <div className="photo-preview">
+                <img src={it.img} alt="" />
+                <button
+                  type="button"
+                  className="photo-remove"
+                  title="Remove photo"
+                  onClick={() => setIt({ ...it, img: "" })}
+                >
+                  <Icon name="x" size={13} />
+                </button>
+              </div>
+            ) : (
+              <div className="photo-placeholder">
+                <Icon name="cupcake" size={22} />
+                <span>No photo yet</span>
+              </div>
+            )}
+            <label className="ops-btn sm gold photo-pick-btn">
+              <Icon name="upload" size={13} /> {uploading ? "Uploading…" : it.img ? "Change Photo" : "Upload Photo"}
+              <input type="file" accept="image/*" hidden disabled={uploading} onChange={handlePhotoPick} />
+            </label>
+          </div>
+          {uploadErr && <div className="photo-err">{uploadErr}</div>}
+          <small className="photo-hint">Choose from your gallery or take a new one — it's auto-resized to keep the menu fast.</small>
+          <details className="photo-url-toggle">
+            <summary>Or paste a photo link instead</summary>
+            <input
+              value={it.img && it.img.startsWith("data:") ? "" : it.img || ""}
+              onChange={(e) => setIt({ ...it, img: e.target.value.trim() })}
+              placeholder="https://…/my-dish-photo.jpg"
+            />
+          </details>
         </div>
         <div className="ops-field">
           <label>Tags</label>
@@ -570,7 +752,7 @@ function Settings({ draft, update }) {
         <h2>Security</h2>
         <div className="ops-field">
           <label>Ops Panel Password (needed to log in to this panel)</label>
-          <input value={s.opsPassword} onChange={(e) => set("opsPassword", e.target.value)} />
+          <input type="password" autoComplete="new-password" value={s.opsPassword} onChange={(e) => set("opsPassword", e.target.value)} />
         </div>
       </div>
 

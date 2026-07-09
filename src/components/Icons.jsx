@@ -160,6 +160,12 @@ const ICONS = {
       <rect x="4" y="18" width="16" height="2" rx="1" />
     </>
   ),
+  upload: (
+    <>
+      {P("M13 21h-2v-9.2l-3.6 3.6-1.4-1.4 6-6 6 6-1.4 1.4L13 11.8Z")}
+      <rect x="4" y="3" width="16" height="2" rx="1" />
+    </>
+  ),
   printer: (
     <>
       {P("M7 3h10v4H7Z")}
@@ -175,7 +181,8 @@ const ICONS = {
     "M5 3h11l5 5v13a1 1 0 0 1-1 1H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2Zm2 2v5h8V5Zm5 9a3 3 0 1 0 3 3 3 3 0 0 0-3-3Z"
   ),
   chevronUp: P("M12 8l6 6-1.8 1.8L12 11.6 7.8 15.8 6 14Z"),
-  chevronDown: P("M12 16 6 10l1.8-1.8L12 12.4l4.2-4.2L18 10Z")
+  chevronDown: P("M12 16 6 10l1.8-1.8L12 12.4l4.2-4.2L18 10Z"),
+  arrowLeft: P("M20 11H7.8l4.6-4.6L11 5l-7 7 7 7 1.4-1.4L7.8 13H20Z")
 };
 
 export function Icon({ name, size = 20, className = "", style }) {
@@ -204,11 +211,11 @@ const CAT_ICON = {
   pizza: "pizza",
   burgers: "burger",
   waffles: "waffle",
-  cakes: "cake",
   sandwiches: "sandwich",
   pasta: "pasta",
   desserts: "cupcake",
   shakes: "shake",
+  thickshakes: "shake",
   maggie: "noodles",
   eatright: "leaf"
 };

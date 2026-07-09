@@ -4,3 +4,4 @@ dist
 *.local
 
 .claude/
+scripts/serviceAccountKey.json

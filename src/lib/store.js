@@ -15,7 +15,9 @@ const DOC = { col: "siesta", doc: "data" };
 
 let mode = "local";
 let db = null;
+let storage = null;
 let readyPromise = null;
+let storagePromise = null;
 
 const defaults = () => JSON.parse(JSON.stringify(DEFAULT_DATA));
 
@@ -69,9 +71,34 @@ function init() {
   return readyPromise;
 }
 
+/* Lazily loads the Storage SDK the first time a photo needs uploading —
+   most sessions never touch it, so it's not part of the initial load. */
+function initStorage() {
+  if (storagePromise) return storagePromise;
+  storagePromise = (async () => {
+    await init();
+    if (mode !== "firebase") return null;
+    const v = "10.14.1";
+    await loadScript(`https://www.gstatic.com/firebasejs/${v}/firebase-storage-compat.js`);
+    storage = window.firebase.storage();
+    return storage;
+  })();
+  return storagePromise;
+}
+
 export const Store = {
   get mode() {
     return mode;
+  },
+
+  /* Uploads a compressed photo Blob to Firebase Storage and returns its
+     public URL. Only works once live sync (Firebase) is connected. */
+  async uploadPhoto(blob, path) {
+    const st = await initStorage();
+    if (!st) throw new Error("Live sync isn't connected yet — connect Firebase before uploading photos.");
+    const ref = st.ref().child(path);
+    await ref.put(blob, { contentType: blob.type || "image/jpeg" });
+    return ref.getDownloadURL();
   },
 
   async getData() {
@@ -98,7 +125,15 @@ export const Store = {
     data.updatedAt = Date.now();
     await init();
     if (mode === "firebase") {
-      await db.collection(DOC.col).doc(DOC.doc).set(JSON.parse(JSON.stringify(data)));
+      // Only write the fields the Ops panel actually edits (categories,
+      // settings). Never touch `callbacks` here — the Ops draft can be
+      // minutes/hours stale while someone edits, and a full-document
+      // overwrite would silently delete any customer callback that
+      // arrived in the meantime. merge:true leaves untouched fields alone.
+      const payload = JSON.parse(
+        JSON.stringify({ categories: data.categories, settings: data.settings, updatedAt: data.updatedAt })
+      );
+      await db.collection(DOC.col).doc(DOC.doc).set(payload, { merge: true });
     } else {
       localStorage.setItem(KEY, JSON.stringify(data));
       // Notify other components in THIS tab too (storage event only
@@ -138,20 +173,43 @@ export const Store = {
     return () => unsub();
   },
 
-  /* Callback-request from the website contact form */
+  /* Callback-request from the website contact form. Writes only the
+     `callbacks` field via an atomic array append — never reads-then-writes
+     the whole document, so it can't collide with (or be clobbered by) an
+     Ops panel save happening at the same time. */
   async addCallback(entry) {
-    const data = await this.getData();
-    data.callbacks = data.callbacks || [];
-    data.callbacks.unshift({
+    await init();
+    const callback = {
       ...entry,
       id: "cb_" + Date.now() + "_" + Math.random().toString(36).slice(2, 7),
       createdAt: Date.now(),
       status: "new"
-    });
-    await this.saveData(data);
+    };
+    if (mode === "firebase") {
+      await db
+        .collection(DOC.col)
+        .doc(DOC.doc)
+        .set({ callbacks: window.firebase.firestore.FieldValue.arrayUnion(callback) }, { merge: true });
+    } else {
+      const data = await this.getData();
+      data.callbacks = data.callbacks || [];
+      data.callbacks.unshift(callback);
+      localStorage.setItem(KEY, JSON.stringify(data));
+      window.dispatchEvent(new CustomEvent("siesta-data", { detail: data }));
+    }
   },
 
+  /* Explicit, confirmed full wipe (Settings -> Danger Zone) — unlike
+     saveData(), this intentionally replaces EVERYTHING, callbacks included. */
   async resetToDefaults() {
-    await this.saveData(defaults());
+    await init();
+    const d = defaults();
+    d.updatedAt = Date.now();
+    if (mode === "firebase") {
+      await db.collection(DOC.col).doc(DOC.doc).set(d);
+    } else {
+      localStorage.setItem(KEY, JSON.stringify(d));
+      window.dispatchEvent(new CustomEvent("siesta-data", { detail: d }));
+    }
   }
 };
