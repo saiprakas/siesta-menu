@@ -134,7 +134,7 @@ for (const file of files) {
   const ext = extname(file).toLowerCase();
   const destName = `${ids[0]}${ext}`;
   copyFileSync(join(PHOTO_DIR, file), join(DEST_DIR, destName));
-  const publicPath = `/dish-photos/${destName}`;
+  const publicPath = `./dish-photos/${destName}`; // relative — must work under any subpath (GitHub Pages, Netlify, etc.)
   ids.forEach((id) => (urlById[id] = publicPath));
   console.log(`"${name}" -> ${publicPath}  (ids: ${ids.join(", ")})`);
   copied++;
