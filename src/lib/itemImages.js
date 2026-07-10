@@ -17,8 +17,6 @@ const ITEM_IMG = {
   "belgian-chocolate-ms": "./dish-photos/belgian-chocolate-ms.jpg",
   "triple-waffle-double": "./dish-photos/triple-waffle.jpg",
   "strawberry-waffle-double": "./dish-photos/strawberry-waffle.jpg",
-  "snickers-waffle-double": "./dish-photos/snickers-waffle.jpg",
-  "snickers-waffle": "./dish-photos/snickers-waffle.jpg",
   "oreo-waffle-double": "./dish-photos/oreo-waffle.jpg",
   "mixed-berry-waffle-double": "./dish-photos/mixed-berry-waffle.jpg",
   "kitkat-waffle-double": "./dish-photos/kitkat-waffle.jpg",
