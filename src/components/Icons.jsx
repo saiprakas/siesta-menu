@@ -217,7 +217,6 @@ const CAT_ICON = {
   shakes: "shake",
   thickshakes: "shake",
   maggie: "noodles",
-  "fried-rice-noodles": "noodles",
   eatright: "leaf"
 };
 
